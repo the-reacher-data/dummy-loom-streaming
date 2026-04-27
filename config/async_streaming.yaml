@@ -1,0 +1,13 @@
+kafka:
+  producer:
+    brokers:
+      - "kafka:29092"
+    client_id: dummy-async-producer
+    topic: scrape.responses
+  consumer:
+    brokers:
+      - "redpanda:9092"
+    group_id: dummy-async-consumer
+    topics:
+      - "scrape.requests"
+    auto_offset_reset: earliest

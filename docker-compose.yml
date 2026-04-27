@@ -1,0 +1,117 @@
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: dummy-loom-streaming-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "1"
+      - --overprovisioned
+      - --kafka-addr
+      - "internal://0.0.0.0:9092,external://0.0.0.0:19092"
+      - --advertise-kafka-addr
+      - "internal://redpanda:9092,external://localhost:19092"
+      - --pandaproxy-addr
+      - "internal://0.0.0.0:8082,external://0.0.0.0:18082"
+      - --advertise-pandaproxy-addr
+      - "internal://redpanda:8082,external://localhost:18082"
+      - --schema-registry-addr
+      - "internal://0.0.0.0:8081,external://0.0.0.0:18081"
+      - --rpc-addr
+      - "redpanda:33145"
+      - --advertise-rpc-addr
+      - "redpanda:33145"
+    ports:
+      - "19092:19092"
+      - "18082:18082"
+      - "18081:18081"
+      - "19644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: dummy-loom-streaming-kafka
+    depends_on:
+      - redpanda
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: ""
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+
+  kafka-init:
+    image: confluentinc/cp-kafkacat:latest
+    container_name: dummy-loom-streaming-kafka-init
+    depends_on:
+      - redpanda
+      - kafka
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for Redpanda..."
+        until kafkacat -b redpanda:9092 -L; do sleep 1; done
+        echo "Waiting for Kafka..."
+        until kafkacat -b kafka:29092 -L; do sleep 1; done
+        echo "Topics ready"
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: dummy-loom-streaming-otel-lgtm
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+
+  async-pod:
+    build: .
+    container_name: dummy-loom-streaming-async-pod
+    depends_on:
+      - redpanda
+      - kafka
+      - kafka-init
+    environment:
+      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_async"]
+
+  sync-pod:
+    build: .
+    container_name: dummy-loom-streaming-sync-pod
+    depends_on:
+      - redpanda
+      - kafka
+      - kafka-init
+    environment:
+      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_sync"]
+
+  seed:
+    build: .
+    container_name: dummy-loom-streaming-seed
+    depends_on:
+      - redpanda
+      - kafka
+      - kafka-init
+    environment:
+      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.seed_requests"]
+
+volumes:
+  redpanda_data:

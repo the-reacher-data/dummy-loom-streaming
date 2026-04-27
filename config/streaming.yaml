@@ -1,0 +1,12 @@
+kafka:
+  producer:
+    brokers:
+      - "localhost:19092"
+    client_id: dummy-streaming-producer
+  consumer:
+    brokers:
+      - "localhost:19092"
+    group_id: dummy-streaming-consumer
+    topics:
+      - "scrape.requests"
+    auto_offset_reset: earliest
