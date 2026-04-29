@@ -3,11 +3,22 @@ kafka:
     brokers:
       - "redpanda:9092"
     client_id: dummy-sync-producer
-    topic: scrape.requests
   consumer:
     brokers:
       - "kafka:29092"
-    group_id: dummy-sync-consumer
+    group_id: dummy-sync-consumer-v2
     topics:
       - "scrape.responses"
-    auto_offset_reset: earliest
+    auto_offset_reset: latest
+
+streaming:
+  smoke:
+    api_base: https://dummyjson.com
+  observability:
+    log: true
+    otel: true
+    otel_config:
+      service_name: ${oc.env:OTEL_SERVICE_NAME,dummy-sync-pod}
+      tracer_name: dummy-loom-streaming
+      endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
+      protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}

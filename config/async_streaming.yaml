@@ -7,7 +7,21 @@ kafka:
   consumer:
     brokers:
       - "redpanda:9092"
-    group_id: dummy-async-consumer
+    group_id: dummy-async-consumer-v2
     topics:
       - "scrape.requests"
-    auto_offset_reset: earliest
+    auto_offset_reset: latest
+
+streaming:
+  smoke:
+    api_base: https://dummyjson.com
+    async_timeout_s: 30.0
+    async_max_concurrency: 50
+  observability:
+    log: true
+    otel: true
+    otel_config:
+      service_name: ${oc.env:OTEL_SERVICE_NAME,dummy-async-pod}
+      tracer_name: dummy-loom-streaming
+      endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
+      protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}

@@ -1,140 +1,79 @@
-"""Async smoke tasks for the two-pod streaming scenario."""
+"""Async smoke tasks — HTTP fetch with concurrent execution via WithAsync+CollectBatch."""
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+import logging
+import time
+from collections.abc import Mapping
 
 import httpx
 
 from loom.streaming.core._message import Message
-from dummy_streaming.telemetry import get_tracer
 from loom.streaming.nodes._step import RecordStep
 
 from dummy_streaming.models import ScrapeRequest, ScrapeResponse
 
-_API_BASE = "https://dummyjson.com"
-_tracer = get_tracer("dummy_streaming.tasks.smoke_async")
+_logger = logging.getLogger(__name__)
+_DEFAULT_API_BASE = "https://dummyjson.com"
 
 
-class FetchCatalogCommentsTask(RecordStep[ScrapeRequest, ScrapeResponse]):
-    """Fetch a post's comments and publish them as a catalog response."""
+class FetchRequestTask(RecordStep[ScrapeRequest, ScrapeResponse]):
+    """Async HTTP fetch for a single request.
 
-    def execute(
+    Called once per message, but executed concurrently across all messages
+    collected in the same ``CollectBatch`` window by the ``WithAsync`` adapter.
+
+    Args:
+        timeout_s: Per-request HTTP timeout in seconds.
+        api_base: Base URL used to resolve relative request paths.
+    """
+
+    def __init__(self, *, timeout_s: float = 30.0, api_base: str = _DEFAULT_API_BASE) -> None:
+        self.timeout_s = timeout_s
+        self.api_base = api_base.rstrip("/")
+
+    async def execute(  # type: ignore[override]
         self,
         message: Message[ScrapeRequest],
         **kwargs: object,
-    ) -> Awaitable[ScrapeResponse]:
+    ) -> ScrapeResponse:
         client = kwargs["http"]
         if not isinstance(client, httpx.AsyncClient):
             raise TypeError(f"Expected httpx.AsyncClient, got {type(client).__name__}")
-        with _tracer.start_as_current_span("fetch_catalog_comments") as span:
-            span.set_attribute("scrape.request_id", message.payload.request_id)
-            span.set_attribute("scrape.post_id", message.payload.post_id)
-            span.set_attribute("scrape.mode", message.payload.mode)
-            return self._fetch(message.payload, client)
-
-    async def _fetch(
-        self,
-        request: ScrapeRequest,
-        client: httpx.AsyncClient,
-    ) -> ScrapeResponse:
-        response = await client.get(
-            f"{_API_BASE}/posts/{request.post_id}/comments",
-            timeout=30.0,
+        request = message.payload
+        url = _resolve_request_url(self.api_base, request.url, request.params)
+        _logger.info(
+            "fetch_start request_id=%s kind=%s url=%s method=%s",
+            request.request_id,
+            request.kind,
+            url,
+            request.method,
         )
-        response.raise_for_status()
-        data = response.json()
-        item_ids = [comment["id"] for comment in data["comments"]]
+        t0 = time.monotonic()
+        response = await client.request(request.method, url, timeout=self.timeout_s)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        _logger.info(
+            "fetch_done request_id=%s kind=%s url=%s status_code=%s elapsed_ms=%.2f",
+            request.request_id,
+            request.kind,
+            url,
+            response.status_code,
+            elapsed_ms,
+        )
         return ScrapeResponse(
             request_id=request.request_id,
-            response_kind="catalog",
-            post_id=request.post_id,
-            item_ids=item_ids,
-            title=f"{len(item_ids)} comments",
+            kind=request.kind,
+            method=request.method,
+            url=url,
+            status_code=response.status_code,
+            elapsed_ms=round(elapsed_ms, 2),
+            body=response.text,
         )
 
 
-class FetchScrapeResponseTask(RecordStep[ScrapeRequest, ScrapeResponse]):
-    """Fetch a scrape response according to the request mode."""
-
-    def execute(
-        self,
-        message: Message[ScrapeRequest],
-        **kwargs: object,
-    ) -> Awaitable[ScrapeResponse]:
-        client = kwargs["http"]
-        if not isinstance(client, httpx.AsyncClient):
-            raise TypeError(f"Expected httpx.AsyncClient, got {type(client).__name__}")
-        if message.payload.mode == "summary":
-            return self._fetch_summary(message.payload, client)
-        return self._fetch_catalog(message.payload, client)
-
-    async def _fetch_catalog(
-        self,
-        request: ScrapeRequest,
-        client: httpx.AsyncClient,
-    ) -> ScrapeResponse:
-        response = await client.get(
-            f"{_API_BASE}/posts/{request.post_id}/comments",
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-        item_ids = [comment["id"] for comment in data["comments"]]
-        return ScrapeResponse(
-            request_id=request.request_id,
-            response_kind="catalog",
-            post_id=request.post_id,
-            item_ids=item_ids,
-            title=f"{len(item_ids)} comments",
-        )
-
-    async def _fetch_summary(
-        self,
-        request: ScrapeRequest,
-        client: httpx.AsyncClient,
-    ) -> ScrapeResponse:
-        response = await client.get(f"{_API_BASE}/posts/{request.post_id}", timeout=30.0)
-        response.raise_for_status()
-        data = response.json()
-        return ScrapeResponse(
-            request_id=request.request_id,
-            response_kind="summary",
-            post_id=request.post_id,
-            item_ids=[request.post_id],
-            title=data["title"],
-        )
-
-
-class FetchSummaryTask(RecordStep[ScrapeRequest, ScrapeResponse]):
-    """Fetch a single post summary and publish it as a summary response."""
-
-    def execute(
-        self,
-        message: Message[ScrapeRequest],
-        **kwargs: object,
-    ) -> Awaitable[ScrapeResponse]:
-        client = kwargs["http"]
-        if not isinstance(client, httpx.AsyncClient):
-            raise TypeError(f"Expected httpx.AsyncClient, got {type(client).__name__}")
-        with _tracer.start_as_current_span("fetch_catalog_comments") as span:
-            span.set_attribute("scrape.request_id", message.payload.request_id)
-            span.set_attribute("scrape.post_id", message.payload.post_id)
-            span.set_attribute("scrape.mode", message.payload.mode)
-            return self._fetch(message.payload, client)
-
-    async def _fetch(
-        self,
-        request: ScrapeRequest,
-        client: httpx.AsyncClient,
-    ) -> ScrapeResponse:
-        response = await client.get(f"{_API_BASE}/posts/{request.post_id}", timeout=30.0)
-        response.raise_for_status()
-        data = response.json()
-        return ScrapeResponse(
-            request_id=request.request_id,
-            response_kind="summary",
-            post_id=request.post_id,
-            item_ids=[request.post_id],
-            title=data["title"],
-        )
+def _resolve_request_url(api_base: str, url: str, params: Mapping[str, str]) -> str:
+    """Resolve a request URL against the configured API base."""
+    rendered = url.format_map(params)
+    if rendered.startswith(("http://", "https://")):
+        return rendered
+    return f"{api_base.rstrip('/')}/{rendered.lstrip('/')}"

@@ -2,26 +2,52 @@
 
 from __future__ import annotations
 
+import logging
+import os
+
 import structlog
 
-from dummy_streaming.telemetry import get_tracer
+from loom.core.config import load_config
 from loom.streaming.bytewax.runner import StreamingRunner
 
-from dummy_streaming.flows.async_flow import async_scrape_flow
+from dummy_streaming.flows.async_flow import build_async_scrape_flow
 
 logger = structlog.get_logger()
-_tracer = get_tracer("dummy_streaming.entrypoints.run_async")
 
 
 def main() -> None:
     """Build and run the async smoke flow against Kafka."""
+    _setup_logging()
     logger.info("starting_async_flow")
-    with _tracer.start_as_current_span("async_smoke_flow"):
-        runner = StreamingRunner.from_yaml(
-        async_scrape_flow,
-        path="config/async_streaming.yaml",
+    cfg = load_config("config/async_streaming.yaml")
+    runner = StreamingRunner.from_config(
+        build_async_scrape_flow(cfg),
+        runtime_config=cfg,
     )
-            runner.run()
+    runner.run()
+
+
+def _setup_logging() -> None:
+    """Configure structlog and raise loom framework logs to WARNING."""
+    level = os.environ.get("LOG_LEVEL", "INFO")
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.dev.ConsoleRenderer(),
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+    logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO))
+    for noisy in ("loom.streaming.flow", "loom.streaming.bytewax"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 if __name__ == "__main__":

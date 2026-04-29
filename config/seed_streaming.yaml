@@ -4,3 +4,8 @@ kafka:
       - "redpanda:9092"
     client_id: dummy-seed-producer
     topic: scrape.requests
+
+streaming:
+  smoke:
+    api_base: https://dummyjson.com
+    seed_products_limit: 5

@@ -1,50 +1,95 @@
-"""Sync smoke flow — consume responses from Kafka and fan out requests back to Redpanda."""
+"""Sync pod — Broadcast + Fork with IntoTopic per branch (framework requirement)."""
 
 from __future__ import annotations
 
+from typing import Any
+
+from omegaconf import DictConfig, OmegaConf
+
+from loom.core.config import section
+from loom.core.expr.refs import RootRef
 from loom.streaming.graph._flow import Process, StreamFlow
 from loom.streaming.nodes._boundary import FromTopic, IntoTopic
-from loom.streaming.nodes._fork import Fork, ForkRoute
-from loom.streaming.nodes._shape import Drain
+from loom.streaming.nodes._broadcast import Broadcast, BroadcastRoute
+from loom.streaming.nodes._fork import Fork
 
+from dummy_streaming.config import SmokeConfig
 from dummy_streaming.models import ScrapeRequest, ScrapeResponse
 from dummy_streaming.tasks.smoke_sync import (
-    FanOutFollowupRequestsStep,
+    ExpandCategoriesTask,
+    ExpandCategoryProductsTask,
+    ExtractProductReviewsTask,
     PrintResponseTask,
-    UppercaseRequestIdTask,
 )
 
-sync_scrape_flow = StreamFlow(
-    name="sync_smoke_flow",
-    source=FromTopic[ScrapeResponse](
-        name="scrape.responses",
-        payload=ScrapeResponse,
-    ),
-    process=Process(
-        Fork.when(
-            routes=(
-                ForkRoute(
-                    when=lambda msg: msg.payload.response_kind == "catalog",
-                    process=Process(
-                        UppercaseRequestIdTask(),
-                        PrintResponseTask(),
-                        FanOutFollowupRequestsStep(),
-                        IntoTopic[ScrapeRequest](
-                            name="scrape.requests",
-                            payload=ScrapeRequest,
-                        ),
+_payload = RootRef("payload")
+
+_DEFAULT_FLOW_CONFIG = OmegaConf.create(
+    {
+        "streaming": {
+            "smoke": {
+                "api_base": SmokeConfig().api_base,
+            }
+        }
+    }
+)
+
+
+def build_sync_scrape_flow(config: DictConfig) -> StreamFlow[Any, Any]:
+    """Build the sync smoke flow from resolved config."""
+    smoke = section(config, "streaming.smoke", SmokeConfig)
+    return StreamFlow(
+        name="sync_smoke_flow",
+        source=FromTopic[ScrapeResponse](
+            name="scrape.responses",
+            payload=ScrapeResponse,
+        ),
+        process=Process(
+            Broadcast(
+                BroadcastRoute(
+                    process=Process(PrintResponseTask()),
+                    output=IntoTopic[ScrapeResponse](
+                        name="scrape.audit",
+                        payload=ScrapeResponse,
                     ),
                 ),
-                ForkRoute(
-                    when=lambda msg: msg.payload.response_kind == "summary",
+                BroadcastRoute(
                     process=Process(
-                        UppercaseRequestIdTask(),
-                        PrintResponseTask(),
-                        Drain(),
+                        Fork.by(
+                            selector=_payload.kind,
+                            branches={
+                                "categories": Process(
+                                    ExpandCategoriesTask(api_base=smoke.api_base),
+                                    IntoTopic[ScrapeRequest](
+                                        name="scrape.requests",
+                                        payload=ScrapeRequest,
+                                    ),
+                                ),
+                                "category": Process(
+                                    ExpandCategoryProductsTask(api_base=smoke.api_base),
+                                    IntoTopic[ScrapeRequest](
+                                        name="scrape.requests",
+                                        payload=ScrapeRequest,
+                                    ),
+                                ),
+                                "product": Process(
+                                    ExtractProductReviewsTask(),
+                                    IntoTopic[ScrapeResponse](
+                                        name="scrape.audit",
+                                        payload=ScrapeResponse,
+                                    ),
+                                ),
+                            },
+                        ),
+                    ),
+                    output=IntoTopic[ScrapeResponse](
+                        name="scrape.audit",
+                        payload=ScrapeResponse,
                     ),
                 ),
             ),
-            default=Process(Drain()),
         ),
-    ),
-)
+    )
+
+
+sync_scrape_flow = build_sync_scrape_flow(_DEFAULT_FLOW_CONFIG)

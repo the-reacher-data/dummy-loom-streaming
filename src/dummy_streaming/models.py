@@ -2,38 +2,42 @@
 
 from __future__ import annotations
 
+import msgspec
+
 from loom.core.model import LoomStruct
 
 
-class PostId(LoomStruct):
-    """Request payload carrying a post identifier to enrich."""
-
-    post_id: int
-
-
-class PostDetail(LoomStruct):
-    """Enriched post detail produced by the flow."""
-
-    user_id: int
-    id: int
-    title: str
-    body: str
-    source: str = ""
-
-
 class ScrapeRequest(LoomStruct):
-    """Seed or follow-up request carried between pods."""
+    """Generic HTTP request carried between pods.
+
+    The URL may be absolute or relative. When relative, the smoke tasks
+    resolve it against the configured API base.
+    """
 
     request_id: str
-    mode: str
-    post_id: int
+    kind: str
+    url: str
+    params: dict[str, str] = msgspec.field(default_factory=dict)
+    method: str = "GET"
 
 
 class ScrapeResponse(LoomStruct):
-    """Response message produced by the async pod."""
+    """Raw HTTP response metadata produced by the async pod."""
 
     request_id: str
-    response_kind: str
-    post_id: int
-    item_ids: list[int]
-    title: str = ""
+    kind: str
+    method: str
+    url: str
+    status_code: int
+    elapsed_ms: float
+    body: str
+
+
+class ProductReview(LoomStruct):
+    """One review extracted from a product response."""
+
+    product_id: int
+    product_title: str
+    rating: int
+    comment: str
+    reviewer_name: str

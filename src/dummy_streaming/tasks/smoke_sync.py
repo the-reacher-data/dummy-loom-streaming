@@ -1,73 +1,207 @@
-"""Sync smoke tasks for the two-pod streaming scenario."""
+"""Sync smoke tasks — audit logging and fan-out for category → product flow."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import json
+import logging
+from collections.abc import Iterable, Mapping
 
-from loom.streaming.core._message import Message
-from dummy_streaming.telemetry import get_tracer
+from loom.streaming.core._message import Message, MessageMeta
 from loom.streaming.nodes._step import ExpandStep, RecordStep
 
-from dummy_streaming.models import ScrapeRequest, ScrapeResponse
+from dummy_streaming.models import ProductReview, ScrapeRequest, ScrapeResponse
 
-_tracer = get_tracer("dummy_streaming.tasks.smoke_sync")
-
-
-class UppercaseRequestIdTask(RecordStep[ScrapeResponse, ScrapeResponse]):
-    """Uppercase the request identifier for logging and visibility."""
-
-    def execute(self, message: Message[ScrapeResponse], **kwargs: object) -> ScrapeResponse:
-        payload = message.payload
-        with _tracer.start_as_current_span("uppercase_request_id") as span:
-            span.set_attribute("scrape.request_id", payload.request_id)
-            span.set_attribute("scrape.response_kind", payload.response_kind)
-        return ScrapeResponse(
-            request_id=payload.request_id.upper(),
-            response_kind=payload.response_kind,
-            post_id=payload.post_id,
-            item_ids=payload.item_ids,
-            title=payload.title,
-        )
+_logger = logging.getLogger(__name__)
+_DEFAULT_API_BASE = "https://dummyjson.com"
 
 
 class PrintResponseTask(RecordStep[ScrapeResponse, ScrapeResponse]):
-    """Print one response and keep it flowing downstream."""
+    """Log a concise one-line summary for every response."""
 
-    def execute(self, message: Message[ScrapeResponse], **kwargs: object) -> ScrapeResponse:
-        payload = message.payload
-        with _tracer.start_as_current_span("print_response") as span:
-            span.set_attribute("scrape.request_id", payload.request_id)
-            span.set_attribute("scrape.response_kind", payload.response_kind)
-        print(
-            f"response kind={payload.response_kind} request_id={payload.request_id} "
-            f"post_id={payload.post_id} item_ids={payload.item_ids} title={payload.title}",
-            flush=True,
+    def execute(self, message: Message[ScrapeResponse], **_kwargs: object) -> ScrapeResponse:
+        p = message.payload
+        _logger.info(
+            "response request_id=%s kind=%s url=%s status_code=%s elapsed_ms=%s",
+            p.request_id,
+            p.kind,
+            p.url,
+            p.status_code,
+            p.elapsed_ms,
         )
-        return payload
+        return p
 
 
-class FanOutFollowupRequestsStep(ExpandStep[ScrapeResponse, ScrapeRequest]):
-    """Expand one catalog response into many follow-up request messages."""
+class ExpandCategoriesTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
+    """Fan-out: one categories catalog → one ScrapeRequest per category.
+
+    Parses the JSON body from ``/products/categories`` and emits an
+    individual request for each category so the async pod can fetch them
+    concurrently.
+    """
+
+    def __init__(self, *, api_base: str = _DEFAULT_API_BASE) -> None:
+        self.api_base = api_base.rstrip("/")
 
     def execute(
-        self,
-        message: Message[ScrapeResponse],
-        **kwargs: object,
+        self, message: Message[ScrapeResponse], **_kwargs: object
     ) -> Iterable[Message[ScrapeRequest]]:
-        payload = message.payload
-        if payload.response_kind != "catalog":
-            return ()
-        with _tracer.start_as_current_span("fan_out_followup_requests") as span:
-            span.set_attribute("scrape.request_id", payload.request_id)
-            span.set_attribute("scrape.item_count", len(payload.item_ids))
-        return [
-            Message(
-                payload=ScrapeRequest(
-                    request_id=f"{payload.request_id}-{item_id}",
-                    mode="followup",
-                    post_id=item_id,
-                ),
-                meta=message.meta,
+        p = message.payload
+        categories = json.loads(p.body)
+        if not isinstance(categories, list):
+            _logger.warning("expand_categories_invalid_body request_id=%s", p.request_id)
+            return []
+
+        _logger.info(
+            "expand_categories request_id=%s category_count=%d",
+            p.request_id,
+            len(categories),
+        )
+        for cat in categories:
+            slug = cat.get("slug", "")
+            name = cat.get("name", "")
+            req = ScrapeRequest(
+                request_id=f"{p.request_id}-cat-{slug}",
+                kind="category",
+                url="/products/category/{slug}",
+                params={"slug": slug},
             )
-            for item_id in payload.item_ids
-        ]
+            _logger.info(
+                "emit_category_request request_id=%s category=%s url=%s",
+                req.request_id,
+                name,
+                _resolve_request_url(self.api_base, req.url, req.params),
+            )
+            yield Message(payload=req, meta=MessageMeta(message_id=req.request_id))
+
+
+class ExpandCategoryProductsTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
+    """Fan-out: one category response → one ScrapeRequest per product.
+
+    Parses the JSON body from ``/products/category/{slug}`` and emits an
+    individual request for each product id so the async pod can fetch them
+    concurrently.
+    """
+
+    def __init__(self, *, api_base: str = _DEFAULT_API_BASE) -> None:
+        self.api_base = api_base.rstrip("/")
+
+    def execute(
+        self, message: Message[ScrapeResponse], **_kwargs: object
+    ) -> Iterable[Message[ScrapeRequest]]:
+        p = message.payload
+        data = json.loads(p.body)
+        products: list[dict[str, object]] = data.get("products", [])
+
+        _logger.info(
+            "expand_category_products request_id=%s product_count=%d",
+            p.request_id,
+            len(products),
+        )
+        for product in products:
+            pid = int(product["id"])
+            title = product.get("title", "")
+            req = ScrapeRequest(
+                request_id=f"{p.request_id}-product-{pid}",
+                kind="product",
+                url="/products/{product_id}",
+                params={"product_id": str(pid)},
+            )
+            _logger.info(
+                "emit_product_request request_id=%s product_title=%s url=%s",
+                req.request_id,
+                title,
+                _resolve_request_url(self.api_base, req.url, req.params),
+            )
+            yield Message(payload=req, meta=MessageMeta(message_id=req.request_id))
+
+
+class ExtractProductReviewsTask(RecordStep[ScrapeResponse, ScrapeResponse]):
+    """Parse a product response and log every review.
+
+    The product body already contains the ``reviews`` array, so no extra
+    HTTP call is needed.
+    """
+
+    def execute(self, message: Message[ScrapeResponse], **_kwargs: object) -> ScrapeResponse:
+        p = message.payload
+        data = json.loads(p.body)
+        pid = data.get("id", 0)
+        title = data.get("title", "unknown")
+        reviews: list[dict[str, object]] = data.get("reviews", [])
+
+        _logger.info(
+            "extract_product_reviews request_id=%s product_id=%s product_title=%s review_count=%d",
+            p.request_id,
+            pid,
+            title,
+            len(reviews),
+        )
+        for review in reviews:
+            pr = ProductReview(
+                product_id=pid,
+                product_title=title,
+                rating=int(review.get("rating", 0)),
+                comment=str(review.get("comment", "")),
+                reviewer_name=str(review.get("reviewerName", "")),
+            )
+            _logger.info(
+                "review product_id=%s product_title=%s rating=%d comment=%s reviewer_name=%s",
+                pr.product_id,
+                pr.product_title,
+                pr.rating,
+                pr.comment,
+                pr.reviewer_name,
+            )
+        return p
+
+
+class ExtractCategoryReviewsTask(RecordStep[ScrapeResponse, ScrapeResponse]):
+    """Parse a category response and log every review found inside each product.
+
+    The category body already contains the full product objects with their
+    ``reviews`` arrays, so no extra HTTP call is needed.
+    """
+
+    def execute(self, message: Message[ScrapeResponse], **_kwargs: object) -> ScrapeResponse:
+        p = message.payload
+        data = json.loads(p.body)
+        products: list[dict[str, object]] = data.get("products", [])
+        category = data.get("products", [{}])[0].get("category", "unknown") if products else "unknown"
+
+        _logger.info(
+            "extract_category_reviews request_id=%s category=%s product_count=%d",
+            p.request_id,
+            category,
+            len(products),
+        )
+
+        for product in products:
+            pid = product.get("id", 0)
+            title = product.get("title", "unknown")
+            reviews: list[dict[str, object]] = product.get("reviews", [])
+            for review in reviews:
+                pr = ProductReview(
+                    product_id=pid,
+                    product_title=title,
+                    rating=int(review.get("rating", 0)),
+                    comment=str(review.get("comment", "")),
+                    reviewer_name=str(review.get("reviewerName", "")),
+                )
+                _logger.info(
+                    "review product_id=%s product_title=%s rating=%d comment=%s reviewer_name=%s",
+                    pr.product_id,
+                    pr.product_title,
+                    pr.rating,
+                    pr.comment,
+                    pr.reviewer_name,
+                )
+
+        return p
+
+
+def _resolve_request_url(api_base: str, url: str, params: Mapping[str, str]) -> str:
+    """Resolve a request URL against the configured API base."""
+    rendered = url.format_map(params)
+    if rendered.startswith(("http://", "https://")):
+        return rendered
+    return f"{api_base.rstrip('/')}/{rendered.lstrip('/')}"
