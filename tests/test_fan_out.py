@@ -5,47 +5,105 @@ from __future__ import annotations
 from loom.streaming.core._message import Message, MessageMeta
 
 from dummy_streaming.models import ScrapeResponse
-from dummy_streaming.tasks.smoke_sync import FanOutFollowupRequestsStep
+from dummy_streaming.tasks.catalog_fanout import (
+    ExpandCategoriesTask,
+    ExpandCategoryProductsTask,
+    ExpandProductCatalogTask,
+)
 
 
-def test_fan_out_produces_one_request_per_item_id() -> None:
-    """A catalog response should expand into one follow-up request per id."""
-    step = FanOutFollowupRequestsStep()
-    message = Message(
-        payload=ScrapeResponse(
-            request_id="seed-catalog",
-            response_kind="catalog",
-            post_id=1,
-            item_ids=[101, 202, 303],
-            title="3 comments",
-        ),
-        meta=MessageMeta(message_id="test-1"),
-    )
+class TestFanOut:
+    """Fan-out tasks used by the sync smoke flow."""
 
-    results = list(step.execute(message))
+    def test_expand_categories_task_emits_one_request_per_category(self) -> None:
+        """A categories response should expand into one follow-up request per category."""
+        task = ExpandCategoriesTask()
+        message = Message(
+            payload=ScrapeResponse(
+                request_id="seed-categories",
+                kind="categories",
+                method="GET",
+                url="https://dummyjson.com/products/categories",
+                status_code=200,
+                elapsed_ms=45.0,
+                body='[{"slug": "beauty", "name": "Beauty"}, {"slug": "fragrances", "name": "Fragrances"}]',
+            ),
+            meta=MessageMeta(message_id="test-1"),
+        )
 
-    assert len(results) == 3
-    assert [item.payload.post_id for item in results] == [101, 202, 303]
-    assert [item.payload.mode for item in results] == ["followup", "followup", "followup"]
-    assert [item.payload.request_id for item in results] == [
-        "seed-catalog-101",
-        "seed-catalog-202",
-        "seed-catalog-303",
-    ]
+        results = list(task.execute(message))
 
+        assert len(results) == 2
+        assert [item.payload.request_id for item in results] == [
+            "seed-categories-cat-beauty",
+            "seed-categories-cat-fragrances",
+        ]
+        assert [item.payload.kind for item in results] == ["category", "category"]
 
-def test_fan_out_ignores_non_catalog_responses() -> None:
-    """Non-catalog responses should not create follow-up requests."""
-    step = FanOutFollowupRequestsStep()
-    message = Message(
-        payload=ScrapeResponse(
-            request_id="seed-summary",
-            response_kind="summary",
-            post_id=2,
-            item_ids=[2],
-            title="Example title",
-        ),
-        meta=MessageMeta(message_id="test-2"),
-    )
+    def test_expand_category_products_task_emits_one_request_per_product(self) -> None:
+        """A category response should expand into one follow-up request per product."""
+        task = ExpandCategoryProductsTask()
+        message = Message(
+            payload=ScrapeResponse(
+                request_id="seed-cat-beauty",
+                kind="category",
+                method="GET",
+                url="https://dummyjson.com/products/category/beauty",
+                status_code=200,
+                elapsed_ms=45.0,
+                body='{"products": [{"id": 1, "title": "Mascara"}, {"id": 2, "title": "Eyeshadow"}]}',
+            ),
+            meta=MessageMeta(message_id="test-2"),
+        )
 
-    assert list(step.execute(message)) == []
+        results = list(task.execute(message))
+
+        assert len(results) == 2
+        assert [item.payload.request_id for item in results] == [
+            "seed-cat-beauty-product-1",
+            "seed-cat-beauty-product-2",
+        ]
+        assert [item.payload.kind for item in results] == ["product", "product"]
+
+    def test_expand_product_catalog_task_emits_one_request_per_product_category(self) -> None:
+        """A products catalog response should expand into one request per product."""
+        task = ExpandProductCatalogTask()
+        message = Message(
+            payload=ScrapeResponse(
+                request_id="seed-products-catalog",
+                kind="products_catalog",
+                method="GET",
+                url="https://dummyjson.com/products",
+                status_code=200,
+                elapsed_ms=45.0,
+                body='{"products": [{"id": 1, "title": "Laptop", "category": "laptops"}, {"id": 2, "title": "Phone", "category": "smartphones"}]}',
+            ),
+            meta=MessageMeta(message_id="test-4"),
+        )
+
+        results = list(task.execute(message))
+
+        assert len(results) == 2
+        assert [item.payload.request_id for item in results] == [
+            "seed-products-catalog-product-1",
+            "seed-products-catalog-product-2",
+        ]
+        assert [item.payload.kind for item in results] == ["product", "product"]
+
+    def test_expand_ignores_empty_list(self) -> None:
+        """An empty list should not emit any requests."""
+        task = ExpandCategoriesTask()
+        message = Message(
+            payload=ScrapeResponse(
+                request_id="seed-categories",
+                kind="categories",
+                method="GET",
+                url="https://dummyjson.com/products/categories",
+                status_code=200,
+                elapsed_ms=30.0,
+                body='[]',
+            ),
+            meta=MessageMeta(message_id="test-3"),
+        )
+
+        assert list(task.execute(message)) == []

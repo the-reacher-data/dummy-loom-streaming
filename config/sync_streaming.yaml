@@ -6,7 +6,7 @@ kafka:
   consumer:
     brokers:
       - "kafka:29092"
-    group_id: dummy-sync-consumer-v2
+    group_id: ${oc.env:HOSTNAME,dummy-sync-consumer}
     topics:
       - "scrape.responses"
     auto_offset_reset: latest
@@ -14,6 +14,12 @@ kafka:
 streaming:
   smoke:
     api_base: https://dummyjson.com
+    expand_product_catalog:
+      api_base: https://dummyjson.com
+    expand_categories:
+      api_base: https://dummyjson.com
+    expand_category_products:
+      api_base: https://dummyjson.com
   observability:
     log: true
     otel: true
@@ -22,3 +28,6 @@ streaming:
       tracer_name: dummy-loom-streaming
       endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
       protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}
+
+logging:
+  level: info
