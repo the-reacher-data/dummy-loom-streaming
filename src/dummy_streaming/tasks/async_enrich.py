@@ -9,8 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable
 
-from loom.streaming.core._message import Message
-from loom.streaming.nodes._step import RecordStep
+from loom.streaming import Message, RecordStep
 
 from dummy_streaming.models import PostDetail, PostId
 

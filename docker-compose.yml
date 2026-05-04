@@ -31,27 +31,30 @@ services:
       - redpanda_data:/var/lib/redpanda/data
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.6.1
     container_name: dummy-loom-streaming-kafka
     depends_on:
       - redpanda
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: ""
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     ports:
       - "9092:9092"
       - "29092:29092"
 
   kafka-init:
-    image: confluentinc/cp-kafkacat:latest
+    image: confluentinc/cp-kafka:latest
     container_name: dummy-loom-streaming-kafka-init
     depends_on:
       - redpanda
@@ -61,10 +64,17 @@ services:
       - -c
       - |
         echo "Waiting for Redpanda..."
-        until kafkacat -b redpanda:9092 -L; do sleep 1; done
+        until kafka-topics --bootstrap-server redpanda:9092 --list > /dev/null 2>&1; do sleep 2; done
+        echo "Creating Redpanda topics..."
+        kafka-topics --bootstrap-server redpanda:9092 --create --if-not-exists --topic scrape.requests --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server redpanda:9092 --create --if-not-exists --topic scrape.audit --partitions 1 --replication-factor 1
         echo "Waiting for Kafka..."
-        until kafkacat -b kafka:29092 -L; do sleep 1; done
-        echo "Topics ready"
+        until kafka-topics --bootstrap-server kafka:29092 --list > /dev/null 2>&1; do sleep 2; done
+        echo "Creating Kafka topics..."
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic scrape.responses --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic scrape.errors --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic scrape.errors.audit --partitions 1 --replication-factor 1
+        echo "All topics ready"
 
   otel-lgtm:
     image: grafana/otel-lgtm:latest
@@ -78,11 +88,12 @@ services:
     build: .
     container_name: dummy-loom-streaming-async-pod
     depends_on:
-      - redpanda
-      - kafka
-      - kafka-init
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
     environment:
-      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_SERVICE_NAME: dummy-async-pod
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_async"]
@@ -91,27 +102,50 @@ services:
     build: .
     container_name: dummy-loom-streaming-sync-pod
     depends_on:
-      - redpanda
-      - kafka
-      - kafka-init
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
     environment:
-      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_SERVICE_NAME: dummy-sync-pod
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_sync"]
+
+  error-pod:
+    build: .
+    container_name: dummy-loom-streaming-error-pod
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
+    environment:
+      OTEL_SERVICE_NAME: dummy-error-pod
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_errors"]
 
   seed:
     build: .
     container_name: dummy-loom-streaming-seed
     depends_on:
-      - redpanda
-      - kafka
-      - kafka-init
+      kafka-init:
+        condition: service_completed_successfully
     environment:
-      OTEL_SERVICE_NAME: dummy-loom-streaming
+      OTEL_SERVICE_NAME: dummy-seed
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.seed_requests"]
+
+  seed-product:
+    build: .
+    container_name: dummy-loom-streaming-seed-product
+    environment:
+      OTEL_SERVICE_NAME: dummy-seed-product
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.seed_product_request"]
 
 volumes:
   redpanda_data:

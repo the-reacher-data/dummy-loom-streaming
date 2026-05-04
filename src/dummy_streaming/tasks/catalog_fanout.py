@@ -6,8 +6,7 @@ import json
 import logging
 from collections.abc import Iterable, Mapping
 
-from loom.streaming.core._message import Message, MessageMeta
-from loom.streaming.nodes._step import ExpandStep, RecordStep
+from loom.streaming import ExpandStep, Message, RecordStep
 
 from dummy_streaming.models import ProductReview, ScrapeRequest, ScrapeResponse
 
@@ -44,7 +43,7 @@ class ExpandCategoriesTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
 
     def execute(
         self, message: Message[ScrapeResponse], **_kwargs: object
-    ) -> Iterable[Message[ScrapeRequest]]:
+    ) -> Iterable[ScrapeRequest]:
         p = message.payload
         categories = json.loads(p.body)
         if not isinstance(categories, list):
@@ -71,7 +70,7 @@ class ExpandCategoriesTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
                 name,
                 _resolve_request_url(self.api_base, req.url, req.params),
             )
-            yield Message(payload=req, meta=MessageMeta(message_id=req.request_id))
+            yield req
 
 
 class ExpandProductCatalogTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
@@ -82,7 +81,7 @@ class ExpandProductCatalogTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
 
     def execute(
         self, message: Message[ScrapeResponse], **_kwargs: object
-    ) -> Iterable[Message[ScrapeRequest]]:
+    ) -> Iterable[ScrapeRequest]:
         p = message.payload
         data = json.loads(p.body)
         products: list[dict[str, object]] = data.get("products", [])
@@ -107,7 +106,7 @@ class ExpandProductCatalogTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
                 title,
                 _resolve_request_url(self.api_base, req.url, req.params),
             )
-            yield Message(payload=req, meta=MessageMeta(message_id=req.request_id))
+            yield req
 
 
 class ExpandCategoryProductsTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
@@ -123,7 +122,7 @@ class ExpandCategoryProductsTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
 
     def execute(
         self, message: Message[ScrapeResponse], **_kwargs: object
-    ) -> Iterable[Message[ScrapeRequest]]:
+    ) -> Iterable[ScrapeRequest]:
         p = message.payload
         data = json.loads(p.body)
         products: list[dict[str, object]] = data.get("products", [])
@@ -148,7 +147,7 @@ class ExpandCategoryProductsTask(ExpandStep[ScrapeResponse, ScrapeRequest]):
                 title,
                 _resolve_request_url(self.api_base, req.url, req.params),
             )
-            yield Message(payload=req, meta=MessageMeta(message_id=req.request_id))
+            yield req
 
 
 class ExtractProductReviewsTask(RecordStep[ScrapeResponse, ScrapeResponse]):
@@ -187,7 +186,21 @@ class ExtractProductReviewsTask(RecordStep[ScrapeResponse, ScrapeResponse]):
                 pr.rating,
                 pr.comment,
                 pr.reviewer_name,
-            )
+        )
+        return p
+
+
+class HandleBusinessProductTask(RecordStep[ScrapeResponse, ScrapeResponse]):
+    """Handle the demo business branch for one product and pass it through."""
+
+    def execute(self, message: Message[ScrapeResponse], **_kwargs: object) -> ScrapeResponse:
+        p = message.payload
+        _logger.info(
+            "business_product_branch request_id=%s url=%s status_code=%s",
+            p.request_id,
+            p.url,
+            p.status_code,
+        )
         return p
 
 

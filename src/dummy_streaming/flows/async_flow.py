@@ -1,60 +1,64 @@
-"""Async pod — fetch requests concurrently."""
+"""Async pod — CollectBatch + WithAsync over the requests topic."""
 
 from __future__ import annotations
 
-import httpx
-from omegaconf import DictConfig, OmegaConf
-
-from loom.core.config import section
-from loom.streaming.graph._flow import Process, StreamFlow
-from loom.streaming.nodes._boundary import FromTopic, IntoTopic
-from loom.streaming.nodes._with import ContextFactory, ResourceScope, WithAsync
-
-from dummy_streaming.config import SmokeConfig
-from dummy_streaming.models import ScrapeRequest, ScrapeResponse
-from dummy_streaming.tasks.smoke_async import FetchRequestTask
-
-_DEFAULT_FLOW_CONFIG = OmegaConf.create(
-    {
-        "streaming": {
-            "smoke": {
-                "api_base": SmokeConfig().api_base,
-                "async_timeout_s": SmokeConfig().async_timeout_s,
-                "async_max_concurrency": SmokeConfig().async_max_concurrency,
-            }
-        }
-    }
+from loom.streaming import (
+    CollectBatch,
+    ErrorEnvelope,
+    ErrorKind,
+    FromTopic,
+    IntoTopic,
+    Process,
+    ResourceScope,
+    StreamFlow,
+    WithAsync,
 )
 
+from dummy_streaming.httpx_factory import AsyncHttpxClientFactory
+from dummy_streaming.models import ScrapeRequest, ScrapeResponse
+from dummy_streaming.tasks.http_fetch import FetchRequestTask
 
-def build_async_scrape_flow(config: DictConfig) -> StreamFlow[ScrapeRequest, ScrapeResponse]:
-    """Build the async smoke flow from resolved config."""
-    smoke = section(config, "streaming.smoke", SmokeConfig)
-    http_factory = ContextFactory(lambda: httpx.AsyncClient())
-    return StreamFlow(
-        name="async_smoke_flow",
-        source=FromTopic[ScrapeRequest](
-            name="scrape.requests",
-            payload=ScrapeRequest,
+
+async_scrape_flow: StreamFlow[ScrapeRequest, ScrapeResponse] = StreamFlow(
+    name="async_smoke_flow",
+    source=FromTopic[ScrapeRequest](
+        name="scrape.requests",
+        payload=ScrapeRequest,
+    ),
+    process=Process(
+        CollectBatch(
+            max_records=50,
+            timeout_ms=2000,
         ),
-        process=Process(
-            WithAsync(
-                process=Process(
-                    FetchRequestTask(
-                        timeout_s=smoke.async_timeout_s,
-                        api_base=smoke.api_base,
-                    ),
-                    IntoTopic[ScrapeResponse](
-                        name="scrape.responses",
-                        payload=ScrapeResponse,
-                    ),
+        WithAsync(
+            process=Process(
+                FetchRequestTask.from_config("streaming.smoke.fetch_request"),
+                IntoTopic[ScrapeResponse](
+                    name="scrape.responses",
+                    payload=ScrapeResponse,
                 ),
-                scope=ResourceScope.WORKER,
-                http=http_factory,
-                max_concurrency=smoke.async_max_concurrency,
             ),
+            scope=ResourceScope.WORKER,
+            http=AsyncHttpxClientFactory.from_config("httpx"),
+            max_concurrency=50,
         ),
-    )
-
-
-async_scrape_flow = build_async_scrape_flow(_DEFAULT_FLOW_CONFIG)
+    ),
+    errors={
+        ErrorKind.WIRE: IntoTopic[ErrorEnvelope[ScrapeRequest]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeRequest],
+        ),
+        ErrorKind.ROUTING: IntoTopic[ErrorEnvelope[ScrapeRequest]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeRequest],
+        ),
+        ErrorKind.TASK: IntoTopic[ErrorEnvelope[ScrapeRequest]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeRequest],
+        ),
+        ErrorKind.BUSINESS: IntoTopic[ErrorEnvelope[ScrapeRequest]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeRequest],
+        ),
+    },
+)

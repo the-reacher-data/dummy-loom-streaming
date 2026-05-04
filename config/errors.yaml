@@ -1,0 +1,26 @@
+kafka:
+  producer:
+    brokers:
+      - "kafka:29092"
+    client_id: dummy-error-producer
+    topic: scrape.errors.audit
+  consumer:
+    brokers:
+      - "kafka:29092"
+    group_id: ${oc.env:HOSTNAME,dummy-error-consumer}
+    topics:
+      - "scrape.errors"
+    auto_offset_reset: latest
+
+streaming:
+  observability:
+    log: true
+    otel: true
+    otel_config:
+      service_name: ${oc.env:OTEL_SERVICE_NAME,dummy-error-pod}
+      tracer_name: dummy-loom-streaming
+      endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
+      protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}
+
+logging:
+  level: info

@@ -3,6 +3,18 @@ kafka:
     brokers:
       - "redpanda:9092"
     client_id: dummy-sync-producer
+    topic: scrape.audit
+  producers:
+    scrape.requests:
+      brokers:
+        - "redpanda:9092"
+      client_id: dummy-sync-producer-requests
+      topic: scrape.requests
+    scrape.sync.errors:
+      brokers:
+        - "kafka:29092"
+      client_id: dummy-sync-errors-producer
+      topic: scrape.errors
   consumer:
     brokers:
       - "kafka:29092"

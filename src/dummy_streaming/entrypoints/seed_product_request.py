@@ -1,4 +1,4 @@
-"""Seed the streaming smoke with the configured request set."""
+"""Seed the smoke with a single product request for wiring probes."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from loom.core.config import load_config, section
 from loom.streaming.kafka import KafkaMessageProducer, KafkaProducerClient, MessageDescriptor
 from loom.streaming.kafka import MsgspecCodec, resolve_producer_topic
 
-from dummy_streaming.config import SeedRequestConfig, SmokeConfig
+from dummy_streaming.config import SmokeConfig
 from dummy_streaming.models import ScrapeRequest
 
 logger = structlog.get_logger()
@@ -24,28 +24,31 @@ _REQUEST_DESCRIPTOR = MessageDescriptor(
 
 
 def main() -> None:
-    """Produce the configured request set into Redpanda."""
+    """Produce a single product request into Redpanda."""
     settings = load_config("config/seed_streaming.yaml")
     _setup_logging(settings)
     smoke = section(settings, "streaming.smoke", SmokeConfig)
     producer_settings = _load_producer_settings(settings)
     topic = resolve_producer_topic("scrape.requests", producer_settings)
 
-    requests = _build_requests(smoke)
+    request = ScrapeRequest(
+        request_id="seed-product-1",
+        kind="product",
+        url=f"{smoke.api_base}/products/1",
+    )
 
     with KafkaMessageProducer(
         raw=KafkaProducerClient(producer_settings),
         codec=MsgspecCodec(),
     ) as producer:
-        for request in requests:
-            logger.info(
-                "seeding_request",
-                request_id=request.request_id,
-                kind=request.kind,
-                url=request.url,
-                params=request.params,
-            )
-            producer.send(topic=topic, payload=request, descriptor=_REQUEST_DESCRIPTOR)
+        logger.info(
+            "seeding_request",
+            request_id=request.request_id,
+            kind=request.kind,
+            url=request.url,
+            params=request.params,
+        )
+        producer.send(topic=topic, payload=request, descriptor=_REQUEST_DESCRIPTOR)
 
 
 def _load_producer_settings(settings: object) -> object:
@@ -75,41 +78,6 @@ def _setup_logging(config: object) -> None:
         cache_logger_on_first_use=True,
     )
     logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO))
-
-
-def _build_requests(smoke: SmokeConfig) -> tuple[ScrapeRequest, ...]:
-    """Build seed requests from config, with a legacy fallback."""
-    if smoke.seed_requests:
-        return tuple(_to_request(item) for item in smoke.seed_requests)
-    return (
-        ScrapeRequest(
-            request_id="seed-products-catalog",
-            kind="products_catalog",
-            url=f"{smoke.api_base}/products",
-            params={"limit": str(smoke.seed_products_limit)},
-        ),
-        ScrapeRequest(
-            request_id="seed-products-malformed",
-            kind="product",
-            url="/products/{product_id}",
-        ),
-        ScrapeRequest(
-            request_id="seed-products-unreachable",
-            kind="product",
-            url="http://127.0.0.1:65535/products/1",
-        ),
-    )
-
-
-def _to_request(item: SeedRequestConfig) -> ScrapeRequest:
-    """Convert a declarative seed config entry into a request payload."""
-    return ScrapeRequest(
-        request_id=item.request_id,
-        kind=item.kind,
-        url=item.url,
-        params=item.params,
-        method=item.method,
-    )
 
 
 if __name__ == "__main__":

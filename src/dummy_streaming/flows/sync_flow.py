@@ -4,11 +4,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from loom.core.expr.refs import RootRef
-from loom.streaming.graph._flow import Process, StreamFlow
-from loom.streaming.nodes._boundary import FromTopic, IntoTopic
-from loom.streaming.nodes._broadcast import Broadcast, BroadcastRoute
-from loom.streaming.nodes._fork import Fork
+from loom.streaming import (
+    Broadcast,
+    BroadcastRoute,
+    ErrorEnvelope,
+    ErrorKind,
+    Fork,
+    FromTopic,
+    IntoTopic,
+    Process,
+    StreamFlow,
+    payload,
+)
 
 from dummy_streaming.models import ScrapeRequest, ScrapeResponse
 from dummy_streaming.tasks.catalog_fanout import (
@@ -18,8 +25,6 @@ from dummy_streaming.tasks.catalog_fanout import (
     ExtractProductReviewsTask,
     PrintResponseTask,
 )
-
-_payload = RootRef("payload")
 
 sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
     name="sync_smoke_flow",
@@ -39,7 +44,7 @@ sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
             BroadcastRoute(
                 process=Process(
                     Fork.by(
-                        selector=_payload.kind,
+                        selector=payload.kind,
                         branches={
                             "products_catalog": Process(
                                 ExpandProductCatalogTask.from_config(
@@ -85,4 +90,22 @@ sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
             ),
         ),
     ),
+    errors={
+        ErrorKind.WIRE: IntoTopic[ErrorEnvelope[ScrapeResponse]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeResponse],
+        ),
+        ErrorKind.ROUTING: IntoTopic[ErrorEnvelope[ScrapeResponse]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeResponse],
+        ),
+        ErrorKind.TASK: IntoTopic[ErrorEnvelope[ScrapeResponse]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeResponse],
+        ),
+        ErrorKind.BUSINESS: IntoTopic[ErrorEnvelope[ScrapeResponse]](
+            name="scrape.errors",
+            payload=ErrorEnvelope[ScrapeResponse],
+        ),
+    },
 )

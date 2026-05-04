@@ -4,10 +4,16 @@ kafka:
       - "kafka:29092"
     client_id: dummy-async-producer
     topic: scrape.responses
+  producers:
+    scrape.async.errors:
+      brokers:
+        - "kafka:29092"
+      client_id: dummy-async-errors-producer
+      topic: scrape.errors
   consumer:
     brokers:
       - "redpanda:9092"
-    group_id: dummy-async-consumer-v2
+    group_id: ${oc.env:HOSTNAME,dummy-async-consumer}
     topics:
       - "scrape.requests"
     auto_offset_reset: latest
@@ -17,6 +23,11 @@ streaming:
     api_base: https://dummyjson.com
     async_timeout_s: 30.0
     async_max_concurrency: 50
+    async_batch_max_records: 50
+    async_batch_timeout_ms: 2000
+    fetch_request:
+      api_base: https://dummyjson.com
+      timeout_s: 30.0
   observability:
     log: true
     otel: true
@@ -25,3 +36,12 @@ streaming:
       tracer_name: dummy-loom-streaming
       endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
       protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}
+
+logging:
+  level: info
+
+httpx:
+  config:
+    timeout_s: 30.0
+    max_connections: 50
+    max_keepalive_connections: 20

@@ -39,8 +39,8 @@ def smoke_config() -> DictConfig:
                         "api_base": "https://dummyjson.com",
                         "async_timeout_s": 30.0,
                         "async_max_concurrency": 50,
-                        "async_batch_max_records": 2,
-                        "async_batch_timeout_ms": 500,
+                        "async_batch_max_records": 50,
+                        "async_batch_timeout_ms": 2000,
                         "seed_products_limit": 5,
                         "expand_product_catalog": {
                             "api_base": "https://dummyjson.com",

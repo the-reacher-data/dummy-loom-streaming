@@ -9,3 +9,18 @@ streaming:
   smoke:
     api_base: https://dummyjson.com
     seed_products_limit: 5
+    seed_requests:
+      - request_id: seed-products-catalog
+        kind: products_catalog
+        url: https://dummyjson.com/products
+        params:
+          limit: "5"
+      - request_id: seed-products-malformed
+        kind: product
+        url: /products/{product_id}
+      - request_id: seed-products-unreachable
+        kind: product
+        url: http://127.0.0.1:65535/products/1
+
+logging:
+  level: info
