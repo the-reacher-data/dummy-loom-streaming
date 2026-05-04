@@ -83,10 +83,7 @@ sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
                         },
                     ),
                 ),
-                output=IntoTopic[ScrapeResponse](
-                    name="scrape.audit",
-                    payload=ScrapeResponse,
-                ),
+                output=None,
             ),
         ),
     ),

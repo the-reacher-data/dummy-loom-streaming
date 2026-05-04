@@ -7,7 +7,7 @@ Dummy streaming repo built on **loom-kernel** to explore Kafka/Bytewax streaming
 - **Redpanda** — Kafka-compatible broker (input broker)
 - **Kafka** — Apache Kafka broker (response broker)
 - **LGTM (Grafana + Tempo + Loki + Mimir)** — Observability stack with OTLP
-- **loom-kernel** `0.5.0.dev110` — Streaming DSL, Bytewax adapter, Kafka clients
+- **loom-kernel** `0.5.0.dev119` — Streaming DSL, Bytewax adapter, Kafka clients
 - **httpx** — HTTP client for scraping tasks
 
 ## Smoke topology
