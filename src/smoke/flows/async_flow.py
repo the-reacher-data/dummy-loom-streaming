@@ -14,9 +14,9 @@ from loom.streaming import (
     WithAsync,
 )
 
-from dummy_streaming.httpx_factory import AsyncHttpxClientFactory
-from dummy_streaming.models import ScrapeRequest, ScrapeResponse
-from dummy_streaming.tasks.http_fetch import FetchRequestTask
+from smoke.httpx_factory import AsyncHttpxClientFactory
+from smoke.models import ScrapeRequest, ScrapeResponse
+from smoke.tasks.http_fetch import FetchRequestTask
 
 
 async_scrape_flow: StreamFlow[ScrapeRequest, ScrapeResponse] = StreamFlow(

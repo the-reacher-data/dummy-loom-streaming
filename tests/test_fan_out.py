@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from loom.streaming import Message, MessageMeta
 
-from dummy_streaming.models import ScrapeResponse
-from dummy_streaming.tasks.catalog_fanout import (
+from smoke.models import ScrapeResponse
+from smoke.tasks.catalog_fanout import (
     ExpandCategoriesTask,
     ExpandCategoryProductsTask,
     ExpandProductCatalogTask,

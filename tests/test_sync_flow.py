@@ -6,9 +6,9 @@ from omegaconf import DictConfig
 
 from loom.streaming import Message, MessageMeta, compile_flow
 
-from dummy_streaming.flows.sync_flow import sync_scrape_flow
-from dummy_streaming.models import ScrapeResponse
-from dummy_streaming.tasks.catalog_fanout import ExtractProductReviewsTask, PrintResponseTask
+from smoke.flows.sync_flow import sync_scrape_flow
+from smoke.models import ScrapeResponse
+from smoke.tasks.catalog_fanout import ExtractProductReviewsTask, PrintResponseTask
 
 
 class TestSyncFlow:

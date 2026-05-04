@@ -5,9 +5,9 @@ from __future__ import annotations
 from loom.core.config import load_config
 from loom.streaming import ErrorEnvelope, ErrorKind, Message, MessageMeta, compile_flow
 
-from dummy_streaming.flows.error_flow import error_flow
-from dummy_streaming.models import ScrapeRequest
-from dummy_streaming.tasks.error_flow import PrintErrorEnvelopeTask
+from smoke.flows.error_flow import error_flow
+from smoke.models import ScrapeRequest
+from smoke.tasks.error_flow import PrintErrorEnvelopeTask
 
 
 class TestErrorFlow:

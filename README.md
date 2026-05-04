@@ -20,13 +20,13 @@ The sync branch also prints the response before fan-out and routes a demo busine
 
 ## Smoke cases
 
-The default seed sends three requests configured in `config/seed_streaming.yaml`:
+The seed entrypoint publishes a selectable request set:
 
-- `seed-products-catalog`: happy path that starts the fan-out
-- `seed-products-malformed`: malformed URL path that exercises task failure
-- `seed-products-unreachable`: unreachable URL that exercises transport failure
+- `good`: only the happy-path catalog request
+- `errors`: malformed URL path plus unreachable URL
+- `all`: the happy path and both error cases
 
-The smoke keeps the seed declarative so the cases can be changed without touching code.
+The smoke keeps the request shapes fixed and selects the published subset with a single mode flag.
 
 ## Quick Start
 
@@ -35,16 +35,20 @@ Run the steps in order:
 
 ```bash
 # Start infra + pods
-make smoke-up
+make start
 
-# Seed the three configured requests into Redpanda
-make smoke-seed-all
+# Seed requests into Redpanda. Defaults to the full set.
+make seed
+
+# Or choose a smaller subset
+make seed SEED_MODE=good
+make seed SEED_MODE=errors
 
 # Tail the pod logs
-make smoke-logs
+make logs
 
 # Stop and clean up
-make smoke-down
+make down
 ```
 
 ## URLs
@@ -57,6 +61,6 @@ make smoke-down
 
 ## Config
 
-The seed payloads live in `config/seed_streaming.yaml`. The async and sync pods
-also read their task-specific HTTP and fan-out settings from YAML, so the smoke
-can be tuned without changing the task code.
+ The seed payloads are generated directly by the seed entrypoint. The async and
+ sync pods still read their task-specific HTTP and fan-out settings from YAML,
+ so the smoke can be tuned without changing the task code.

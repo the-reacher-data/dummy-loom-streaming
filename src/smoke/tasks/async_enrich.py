@@ -11,7 +11,7 @@ from collections.abc import Awaitable
 
 from loom.streaming import Message, RecordStep
 
-from dummy_streaming.models import PostDetail, PostId
+from smoke.models import PostDetail, PostId
 
 
 class AsyncEnrichTask(RecordStep[PostId, PostDetail]):

@@ -6,7 +6,7 @@ import httpx
 
 from loom.streaming import ContextFactory
 
-from dummy_streaming.config import HttpxConfig
+from smoke.config import HttpxConfig
 
 
 class AsyncHttpxClientFactory(ContextFactory):

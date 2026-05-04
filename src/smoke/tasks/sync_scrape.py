@@ -6,7 +6,7 @@ import httpx
 
 from loom.streaming import Message, RecordStep
 
-from dummy_streaming.models import PostDetail, PostId
+from smoke.models import PostDetail, PostId
 
 _API_BASE = "https://jsonplaceholder.typicode.com"
 

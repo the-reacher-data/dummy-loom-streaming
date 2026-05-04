@@ -29,7 +29,7 @@ requires = ["hatchling>=1.24.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/dummy_streaming"]
+packages = ["src/smoke"]
 
 [[tool.uv.index]]
 name = "pypi"

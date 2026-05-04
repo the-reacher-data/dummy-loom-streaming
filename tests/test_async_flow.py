@@ -7,9 +7,9 @@ from omegaconf import DictConfig
 
 from loom.streaming import Message, MessageMeta, compile_flow
 
-from dummy_streaming.flows.async_flow import async_scrape_flow
-from dummy_streaming.models import ScrapeRequest
-from dummy_streaming.tasks.http_fetch import FetchRequestSyncTask
+from smoke.flows.async_flow import async_scrape_flow
+from smoke.models import ScrapeRequest
+from smoke.tasks.http_fetch import FetchRequestSyncTask
 
 
 class TestAsyncFlow:

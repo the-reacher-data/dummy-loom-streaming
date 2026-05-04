@@ -1,4 +1,4 @@
-"""Run the async smoke flow with Bytewax StreamingRunner."""
+"""Run the sync smoke flow with Bytewax StreamingRunner."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ import structlog
 
 from loom.streaming.bytewax.runner import StreamingRunner
 
-from dummy_streaming.flows.async_flow import async_scrape_flow
+from smoke.flows.sync_flow import sync_scrape_flow
 
 logger = structlog.get_logger()
 
 
 def main() -> None:
-    """Build and run the async smoke flow against Kafka."""
+    """Build and run the sync smoke flow against Kafka."""
     _setup_logging()
-    logger.info("starting_async_flow")
-    StreamingRunner.from_yaml(async_scrape_flow, "config/async_streaming.yaml").run()
+    logger.info("starting_sync_flow")
+    StreamingRunner.from_yaml(sync_scrape_flow, "config/sync_streaming.yaml").run()
 
 
 def _setup_logging() -> None:

@@ -1,18 +1,19 @@
-"""Seed the streaming smoke with the configured request set."""
+"""Seed the streaming smoke with a selectable request set."""
 
 from __future__ import annotations
 
+import argparse
 import logging
+from collections.abc import Sequence
 
 import structlog
-from omegaconf import OmegaConf
 
 from loom.core.config import load_config, section
 from loom.streaming.kafka import KafkaMessageProducer, KafkaProducerClient, MessageDescriptor
 from loom.streaming.kafka import MsgspecCodec, resolve_producer_topic
 
-from dummy_streaming.config import SeedRequestConfig, SmokeConfig
-from dummy_streaming.models import ScrapeRequest
+from smoke.config import SmokeConfig
+from smoke.models import ScrapeRequest
 
 logger = structlog.get_logger()
 
@@ -23,15 +24,16 @@ _REQUEST_DESCRIPTOR = MessageDescriptor(
 )
 
 
-def main() -> None:
-    """Produce the configured request set into Redpanda."""
+def main(argv: Sequence[str] | None = None) -> None:
+    """Produce the selected request set into Redpanda."""
+    args = _parse_args(argv)
     settings = load_config("config/seed_streaming.yaml")
-    _setup_logging(settings)
+    _setup_logging()
     smoke = section(settings, "streaming.smoke", SmokeConfig)
     producer_settings = _load_producer_settings(settings)
     topic = resolve_producer_topic("scrape.requests", producer_settings)
 
-    requests = _build_requests(smoke)
+    requests = _build_requests(smoke, args.mode)
 
     with KafkaMessageProducer(
         raw=KafkaProducerClient(producer_settings),
@@ -50,15 +52,17 @@ def main() -> None:
 
 def _load_producer_settings(settings: object) -> object:
     """Load the Kafka producer section with a clear error if missing."""
-    producer_settings = getattr(settings, "producer", None)
+    kafka_settings = getattr(settings, "kafka", None)
+    if kafka_settings is None:
+        raise RuntimeError("seed_streaming.yaml must define kafka")
+    producer_settings = getattr(kafka_settings, "producer", None)
     if producer_settings is None:
         raise RuntimeError("seed_streaming.yaml must define kafka.producer")
     return producer_settings
 
 
-def _setup_logging(config: object) -> None:
-    """Configure structlog and set the configured log level."""
-    level = str(OmegaConf.select(config, "logging.level", "INFO"))
+def _setup_logging() -> None:
+    """Configure structlog and set the pod log level to info."""
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
@@ -74,20 +78,31 @@ def _setup_logging(config: object) -> None:
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO))
+    logging.basicConfig(level=logging.INFO)
 
 
-def _build_requests(smoke: SmokeConfig) -> tuple[ScrapeRequest, ...]:
-    """Build seed requests from config, with a legacy fallback."""
-    if smoke.seed_requests:
-        return tuple(_to_request(item) for item in smoke.seed_requests)
-    return (
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--mode",
+        choices=("good", "errors", "all"),
+        default="all",
+        help="Select which seed requests to publish.",
+    )
+    return parser.parse_args(argv)
+
+
+def _build_requests(smoke: SmokeConfig, mode: str) -> tuple[ScrapeRequest, ...]:
+    """Build the selected seed requests."""
+    good = (
         ScrapeRequest(
             request_id="seed-products-catalog",
             kind="products_catalog",
             url=f"{smoke.api_base}/products",
             params={"limit": str(smoke.seed_products_limit)},
         ),
+    )
+    errors = (
         ScrapeRequest(
             request_id="seed-products-malformed",
             kind="product",
@@ -99,17 +114,11 @@ def _build_requests(smoke: SmokeConfig) -> tuple[ScrapeRequest, ...]:
             url="http://127.0.0.1:65535/products/1",
         ),
     )
-
-
-def _to_request(item: SeedRequestConfig) -> ScrapeRequest:
-    """Convert a declarative seed config entry into a request payload."""
-    return ScrapeRequest(
-        request_id=item.request_id,
-        kind=item.kind,
-        url=item.url,
-        params=item.params,
-        method=item.method,
-    )
+    if mode == "good":
+        return good
+    if mode == "errors":
+        return errors
+    return good + errors
 
 
 if __name__ == "__main__":

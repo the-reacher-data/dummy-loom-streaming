@@ -2,19 +2,7 @@
 
 from __future__ import annotations
 
-import msgspec
-
 from loom.core.model import LoomFrozenStruct
-
-
-class SeedRequestConfig(LoomFrozenStruct, frozen=True):
-    """Declarative seed request used by the smoke seeder."""
-
-    request_id: str
-    kind: str
-    url: str
-    params: dict[str, str] = msgspec.field(default_factory=dict)
-    method: str = "GET"
 
 
 class SmokeConfig(LoomFrozenStruct, frozen=True):
@@ -26,7 +14,6 @@ class SmokeConfig(LoomFrozenStruct, frozen=True):
     async_batch_max_records: int = 50
     async_batch_timeout_ms: int = 2000
     seed_products_limit: int = 5
-    seed_requests: tuple[SeedRequestConfig, ...] = msgspec.field(default_factory=tuple)
 
 
 class HttpxConfig(LoomFrozenStruct, frozen=True):

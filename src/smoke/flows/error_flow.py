@@ -15,7 +15,7 @@ from loom.streaming import (
     payload,
 )
 
-from dummy_streaming.tasks.error_flow import PrintBusinessErrorTask, PrintErrorEnvelopeTask
+from smoke.tasks.error_flow import PrintBusinessErrorTask, PrintErrorEnvelopeTask
 
 
 error_flow: StreamFlow[ErrorEnvelope[Any], ErrorEnvelope[Any]] = StreamFlow(

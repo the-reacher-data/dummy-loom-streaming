@@ -10,7 +10,7 @@ import httpx
 
 from loom.streaming import Message, RecordStep
 
-from dummy_streaming.models import ScrapeRequest, ScrapeResponse
+from smoke.models import ScrapeRequest, ScrapeResponse
 
 _logger = logging.getLogger(__name__)
 _DEFAULT_API_BASE = "https://dummyjson.com"

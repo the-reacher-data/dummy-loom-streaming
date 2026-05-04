@@ -17,8 +17,8 @@ from loom.streaming import (
     payload,
 )
 
-from dummy_streaming.models import ScrapeRequest, ScrapeResponse
-from dummy_streaming.tasks.catalog_fanout import (
+from smoke.models import ScrapeRequest, ScrapeResponse
+from smoke.tasks.catalog_fanout import (
     ExpandCategoriesTask,
     ExpandCategoryProductsTask,
     ExpandProductCatalogTask,

@@ -96,7 +96,7 @@ services:
       OTEL_SERVICE_NAME: dummy-async-pod
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_async"]
+    command: ["uv", "run", "python", "-m", "smoke.entrypoints.run_async"]
 
   sync-pod:
     build: .
@@ -110,7 +110,7 @@ services:
       OTEL_SERVICE_NAME: dummy-sync-pod
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_sync"]
+    command: ["uv", "run", "python", "-m", "smoke.entrypoints.run_sync"]
 
   error-pod:
     build: .
@@ -124,7 +124,7 @@ services:
       OTEL_SERVICE_NAME: dummy-error-pod
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.run_errors"]
+    command: ["uv", "run", "python", "-m", "smoke.entrypoints.run_errors"]
 
   seed:
     build: .
@@ -136,16 +136,7 @@ services:
       OTEL_SERVICE_NAME: dummy-seed
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.seed_requests"]
-
-  seed-product:
-    build: .
-    container_name: dummy-loom-streaming-seed-product
-    environment:
-      OTEL_SERVICE_NAME: dummy-seed-product
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318/v1/traces
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    command: ["uv", "run", "python", "-m", "dummy_streaming.entrypoints.seed_product_request"]
+    command: ["uv", "run", "python", "-m", "smoke.entrypoints.seed_requests"]
 
 volumes:
   redpanda_data:
