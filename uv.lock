@@ -202,7 +202,7 @@ dev = [
 requires-dist = [
     { name = "fsspec", specifier = ">=2024.2.0" },
     { name = "httpx", specifier = ">=0.28,<1.0" },
-    { name = "loom-kernel", extras = ["streaming"], specifier = "==0.5.0.dev119", index = "https://test.pypi.org/simple" },
+    { name = "loom-kernel", extras = ["streaming"], specifier = "==0.5.0", index = "https://pypi.org/simple" },
     { name = "msgspec", specifier = ">=0.18,<1.0" },
     { name = "omegaconf", specifier = ">=2.3,<3.0" },
     { name = "opentelemetry-api", specifier = ">=1.27,<2.0" },
@@ -337,8 +337,8 @@ wheels = [
 
 [[package]]
 name = "loom-kernel"
-version = "0.5.0.dev119"
-source = { registry = "https://test.pypi.org/simple" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiocache" },
     { name = "msgspec" },
@@ -346,9 +346,9 @@ dependencies = [
     { name = "prometheus-client" },
     { name = "structlog" },
 ]
-sdist = { url = "https://test-files.pythonhosted.org/packages/f4/41/9e4d7a41f19355a41fb30ccdc90117df40ed3653d26b40732fe0a27e333f/loom_kernel-0.5.0.dev119.tar.gz", hash = "sha256:aa69cf9e0388e60e17bb0fbeab265cac14d960c0e44bc20a98f70977bc442ff1", size = 12807874, upload-time = "2026-05-04T15:09:16.662Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/32/947176cf10eccb69f6aa5241939b3675d9c67c1f06fcbcadd99fbf1b50e0/loom_kernel-0.5.0.tar.gz", hash = "sha256:1ae3fad5b5914eaf11290f1bd1bf4ee2624031bc227c07564491f9edadb286e9", size = 1609628, upload-time = "2026-05-05T16:36:11.196Z" }
 wheels = [
-    { url = "https://test-files.pythonhosted.org/packages/ae/80/abba7415b2a025685367c01439c5bf9eaa24a8e6794f8b9b743517044b35/loom_kernel-0.5.0.dev119-py3-none-any.whl", hash = "sha256:0170f33c960eeb97897382a71369474059563216a0978e078f269f2413e9ac6e", size = 531779, upload-time = "2026-05-04T15:09:15.137Z" },
+    { url = "https://files.pythonhosted.org/packages/41/dc/765a8076e1fcac5616d789fafa92b1b2f568f475e91bc7ed48d686bd7910/loom_kernel-0.5.0-py3-none-any.whl", hash = "sha256:778b697e25d839168b3f29e6f4a8f981c75bf02930d3785bf6da2dd9175dbd07", size = 537957, upload-time = "2026-05-05T16:36:09.726Z" },
 ]
 
 [package.optional-dependencies]

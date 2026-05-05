@@ -1,13 +1,13 @@
 # dummy-loom-streaming
 
-Dummy streaming repo built on **loom-kernel** to explore Kafka/Bytewax streaming with a multi-pod smoke.
+Dummy streaming repo built on **loom-kernel** to validate Kafka/Bytewax streaming flows, error routing, and observability with a multi-pod smoke test.
 
 ## Stack
 
 - **Redpanda** — Kafka-compatible broker (input broker)
 - **Kafka** — Apache Kafka broker (response broker)
 - **LGTM (Grafana + Tempo + Loki + Mimir)** — Observability stack with OTLP
-- **loom-kernel** `0.5.0.dev119` — Streaming DSL, Bytewax adapter, Kafka clients
+- **loom-kernel** `0.5.0` — Streaming DSL, Bytewax adapter, Kafka clients
 - **httpx** — HTTP client for scraping tasks
 
 ## Smoke topology
@@ -16,17 +16,17 @@ Dummy streaming repo built on **loom-kernel** to explore Kafka/Bytewax streaming
 - `sync-pod`: consumes `scrape.responses` from Kafka and fans out new `scrape.requests` back to Redpanda
 - `error-pod`: consumes `scrape.errors` and prints the full `ErrorEnvelope`
 
-The sync branch also prints the response before fan-out and routes a demo business branch for product `13`.
+The sync branch also prints the response before fan-out, routes a demo business branch for product `13`, and mirrors managed errors through the shared error topic.
 
 ## Smoke cases
 
-The seed entrypoint publishes a selectable request set:
+The seed entrypoint publishes a selectable request set and a raw corrupt record for decode-error validation:
 
 - `good`: only the happy-path catalog request
 - `errors`: malformed URL path plus unreachable URL
 - `all`: the happy path and both error cases
 
-The smoke keeps the request shapes fixed and selects the published subset with a single mode flag.
+The smoke keeps the request shapes fixed and selects the published subset with a single mode flag. It also includes a corrupt record seed so the wire decode path can be validated end to end.
 
 ## Quick Start
 

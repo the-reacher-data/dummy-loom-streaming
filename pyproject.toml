@@ -5,7 +5,7 @@ description = "Dummy streaming repo built on loom-kernel with Bytewax/Kafka runn
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "loom-kernel[streaming]==0.5.0.dev119",
+    "loom-kernel[streaming]==0.5.0",
     "httpx>=0.28,<1.0",
     "msgspec>=0.18,<1.0",
     "structlog>=24.4,<26.0",
@@ -40,7 +40,7 @@ name = "testpypi"
 url = "https://test.pypi.org/simple"
 
 [tool.uv.sources]
-loom-kernel = { index = "testpypi" }
+loom-kernel = { index = "pypi" }
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"
