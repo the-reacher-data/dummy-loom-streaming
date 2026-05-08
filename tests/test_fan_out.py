@@ -28,7 +28,7 @@ class TestFanOut:
                 elapsed_ms=45.0,
                 body='[{"slug": "beauty", "name": "Beauty"}, {"slug": "fragrances", "name": "Fragrances"}]',
             ),
-            meta=MessageMeta(message_id="test-1"),
+            meta=MessageMeta(message_id="test-1", trace_id="trace-fanout-1"),
         )
 
         results = list(task.execute(message))
@@ -53,7 +53,7 @@ class TestFanOut:
                 elapsed_ms=45.0,
                 body='{"products": [{"id": 1, "title": "Mascara"}, {"id": 2, "title": "Eyeshadow"}]}',
             ),
-            meta=MessageMeta(message_id="test-2"),
+            meta=MessageMeta(message_id="test-2", trace_id="trace-fanout-2"),
         )
 
         results = list(task.execute(message))
@@ -78,7 +78,7 @@ class TestFanOut:
                 elapsed_ms=45.0,
                 body='{"products": [{"id": 1, "title": "Laptop", "category": "laptops"}, {"id": 2, "title": "Phone", "category": "smartphones"}]}',
             ),
-            meta=MessageMeta(message_id="test-4"),
+            meta=MessageMeta(message_id="test-4", trace_id="trace-fanout-4"),
         )
 
         results = list(task.execute(message))
@@ -103,7 +103,7 @@ class TestFanOut:
                 elapsed_ms=30.0,
                 body='[]',
             ),
-            meta=MessageMeta(message_id="test-3"),
+            meta=MessageMeta(message_id="test-3", trace_id="trace-fanout-3"),
         )
 
         assert list(task.execute(message)) == []

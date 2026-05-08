@@ -204,6 +204,22 @@ class HandleBusinessProductTask(RecordStep[ScrapeResponse, ScrapeResponse]):
         return p
 
 
+class TriggerSyncErrorTask(RecordStep[ScrapeResponse, ScrapeResponse]):
+    """Deliberately fail one sync branch so the error flow can mirror it."""
+
+    def execute(self, message: Message[ScrapeResponse], **_kwargs: object) -> ScrapeResponse:
+        p = message.payload
+        _logger.warning(
+            "trigger_sync_error request_id=%s kind=%s url=%s",
+            p.request_id,
+            p.kind,
+            p.url,
+        )
+        from loom.core.errors.errors import RuleViolation
+
+        raise RuleViolation("sync_branch", "dummy sync validation failure")
+
+
 class ExtractCategoryReviewsTask(RecordStep[ScrapeResponse, ScrapeResponse]):
     """Parse a category response and log every review found inside each product.
 

@@ -29,7 +29,7 @@ class TestAsyncFlow:
                     url="/products/{product_id}",
                     params={"product_id": "1"},
                 ),
-                meta=MessageMeta(message_id="test-1"),
+                meta=MessageMeta(message_id="test-1", trace_id="trace-async-1"),
             )
             result = task.execute(msg, http=client)
 

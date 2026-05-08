@@ -202,7 +202,7 @@ dev = [
 requires-dist = [
     { name = "fsspec", specifier = ">=2024.2.0" },
     { name = "httpx", specifier = ">=0.28,<1.0" },
-    { name = "loom-kernel", extras = ["streaming"], specifier = "==0.5.0", index = "https://pypi.org/simple" },
+    { name = "loom-kernel", extras = ["streaming"], specifier = "==0.6.0" },
     { name = "msgspec", specifier = ">=0.18,<1.0" },
     { name = "omegaconf", specifier = ">=2.3,<3.0" },
     { name = "opentelemetry-api", specifier = ">=1.27,<2.0" },
@@ -337,7 +337,7 @@ wheels = [
 
 [[package]]
 name = "loom-kernel"
-version = "0.5.0"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiocache" },
@@ -346,9 +346,9 @@ dependencies = [
     { name = "prometheus-client" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/32/947176cf10eccb69f6aa5241939b3675d9c67c1f06fcbcadd99fbf1b50e0/loom_kernel-0.5.0.tar.gz", hash = "sha256:1ae3fad5b5914eaf11290f1bd1bf4ee2624031bc227c07564491f9edadb286e9", size = 1609628, upload-time = "2026-05-05T16:36:11.196Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/b9/f9c3e199071c1111a218501f3d0435322dc7a5f524fc50e4cd247017f51c/loom_kernel-0.6.0.tar.gz", hash = "sha256:95e810d92d4817c5792b6fec123ce053b3a3f932f92c30bd76dbfcaeeb2db887", size = 1613870, upload-time = "2026-05-08T06:19:05.471Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/dc/765a8076e1fcac5616d789fafa92b1b2f568f475e91bc7ed48d686bd7910/loom_kernel-0.5.0-py3-none-any.whl", hash = "sha256:778b697e25d839168b3f29e6f4a8f981c75bf02930d3785bf6da2dd9175dbd07", size = 537957, upload-time = "2026-05-05T16:36:09.726Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/2b/65ad3e340eb327efdbe6cac1c0de27ade152e9d036369a89980da6eed68e/loom_kernel-0.6.0-py3-none-any.whl", hash = "sha256:0659f7ee4eced5e0b4478cc5b254db4ac64223de7c0d4d6e532c6d422db5ee32", size = 532373, upload-time = "2026-05-08T06:19:03.486Z" },
 ]
 
 [package.optional-dependencies]

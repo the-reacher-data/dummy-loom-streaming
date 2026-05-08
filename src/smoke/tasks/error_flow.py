@@ -1,36 +1,59 @@
+
 """Error envelope logging tasks for the dummy streaming smoke."""
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from loom.streaming import ErrorEnvelope, Message, RecordStep
+from loom.streaming.kafka import DecodeError
 
-_logger = logging.getLogger(__name__)
+
+def _payload_value(payload: object, key: str) -> object | None:
+    if isinstance(payload, dict):
+        return payload.get(key)
+    return getattr(payload, key, None)
 
 
-class PrintErrorEnvelopeTask(RecordStep[ErrorEnvelope[Any], ErrorEnvelope[Any]]):
+class PrintErrorEnvelopeTask(RecordStep[ErrorEnvelope[Any] | DecodeError, ErrorEnvelope[Any]]):
     """Log an error envelope and pass it through unchanged."""
 
     def execute(
         self,
-        message: Message[ErrorEnvelope[Any]],
+        message: Message[ErrorEnvelope[Any] | DecodeError],
         **_kwargs: object,
     ) -> ErrorEnvelope[Any]:
-        envelope = message.payload
+        payload = message.payload
+        if isinstance(payload, DecodeError):
+            envelope = payload.error
+            self.log.debug(
+                "error_envelope",
+                kind=envelope.kind,
+                reason=envelope.reason,
+                payload_type=payload.loom_message_type(),
+                original_type=None,
+                original_kind=None,
+                original_request_id=None,
+            )
+            return envelope
+
+        envelope = payload
         original = envelope.original_message
+        original_message_type = None
         original_kind = None
         original_request_id = None
         if original is not None:
-            original_kind = getattr(original.payload, "kind", None)
-            original_request_id = getattr(original.payload, "request_id", None)
-        _logger.info(
-            "error_envelope kind=%s reason=%s original_kind=%s original_request_id=%s",
-            envelope.kind,
-            envelope.reason,
-            original_kind,
-            original_request_id,
+            original_message_type = original.meta.message_type
+            original_kind = _payload_value(original.payload, "kind")
+            original_request_id = _payload_value(original.payload, "request_id")
+        self.log.debug(
+            "error_envelope",
+            kind=envelope.kind,
+            reason=envelope.reason,
+            payload_type=envelope.payload_type,
+            original_type=original_message_type,
+            original_kind=original_kind,
+            original_request_id=original_request_id,
         )
         return envelope
 
@@ -40,17 +63,22 @@ class PrintBusinessErrorTask(RecordStep[ErrorEnvelope[Any], ErrorEnvelope[Any]])
 
     def execute(
         self,
-        message: Message[ErrorEnvelope[Any]],
+        message: Message[ErrorEnvelope[Any] | DecodeError],
         **_kwargs: object,
     ) -> ErrorEnvelope[Any]:
         envelope = message.payload
         original = envelope.original_message
+        original_message_type = None
         original_request_id = None
         if original is not None:
-            original_request_id = getattr(original.payload, "request_id", None)
-        _logger.info(
-            "business_error_envelope reason=%s original_request_id=%s",
-            envelope.reason,
-            original_request_id,
+            original_message_type = original.meta.message_type
+            original_request_id = _payload_value(original.payload, "request_id")
+        self.log.debug(
+            "business_error_envelope",
+            kind=envelope.kind,
+            reason=envelope.reason,
+            payload_type=envelope.payload_type,
+            original_type=original_message_type,
+            original_request_id=original_request_id,
         )
         return envelope

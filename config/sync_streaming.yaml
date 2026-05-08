@@ -10,7 +10,7 @@ kafka:
         - "redpanda:9092"
       client_id: dummy-sync-producer-requests
       topic: scrape.requests
-    scrape.sync.errors:
+    scrape.errors:
       brokers:
         - "kafka:29092"
       client_id: dummy-sync-errors-producer
@@ -32,14 +32,25 @@ streaming:
       api_base: https://dummyjson.com
     expand_category_products:
       api_base: https://dummyjson.com
-  observability:
-    log: true
-    otel: true
-    otel_config:
-      service_name: ${oc.env:OTEL_SERVICE_NAME,dummy-sync-pod}
-      tracer_name: dummy-loom-streaming
-      endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
-      protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}
-
-logging:
-  level: info
+  runtime:
+    observability:
+      log:
+        enabled: true
+        config:
+          name: dummy_loom_streaming
+          environment: ${oc.env:ENVIRONMENT,dev}
+          renderer: ${oc.env:LOG_RENDERER,console}
+          colors: ${oc.decode:${oc.env:LOG_COLORS,true}}
+          level: ${oc.env:LOG_LEVEL,INFO}
+      otel:
+        enabled: true
+        export_logs: true
+        config:
+          service_name: ${oc.env:OTEL_SERVICE_NAME,dummy-sync-pod}
+          tracer_name: dummy-loom-streaming
+          endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://otel-lgtm:4318/v1/traces}
+          protocol: ${oc.env:OTEL_EXPORTER_OTLP_PROTOCOL,http/protobuf}
+      prometheus:
+        enabled: ${oc.decode:${oc.env:PROMETHEUS_ENABLED,false}}
+        config:
+          path: ${oc.env:PROMETHEUS_PATH,/metrics}

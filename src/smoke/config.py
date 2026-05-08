@@ -9,7 +9,7 @@ class SmokeConfig(LoomFrozenStruct, frozen=True):
     """Configuration shared by the async, sync, and seed smoke pods."""
 
     api_base: str = "https://dummyjson.com"
-    async_timeout_s: float = 30.0
+    async_timeout_s: float = 5.0
     async_max_concurrency: int = 50
     async_batch_max_records: int = 50
     async_batch_timeout_ms: int = 2000

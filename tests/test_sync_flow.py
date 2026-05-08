@@ -27,7 +27,7 @@ class TestSyncFlow:
                 elapsed_ms=25.0,
                 body='{"title": "Example product"}',
             ),
-            meta=MessageMeta(message_id="test-2"),
+            meta=MessageMeta(message_id="test-2", trace_id="trace-sync-1"),
         )
 
         result = task.execute(message)
@@ -47,7 +47,7 @@ class TestSyncFlow:
                 elapsed_ms=30.0,
                 body='{"id": 1, "title": "Mascara", "reviews": [{"rating": 5, "comment": "Great!", "reviewerName": "Alice"}]}',
             ),
-            meta=MessageMeta(message_id="test-2"),
+            meta=MessageMeta(message_id="test-2", trace_id="trace-sync-2"),
         )
 
         result = task.execute(message)

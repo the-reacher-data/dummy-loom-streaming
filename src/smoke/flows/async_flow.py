@@ -13,6 +13,7 @@ from loom.streaming import (
     StreamFlow,
     WithAsync,
 )
+from loom.streaming.kafka import DecodeError
 
 from smoke.httpx_factory import AsyncHttpxClientFactory
 from smoke.models import ScrapeRequest, ScrapeResponse
@@ -40,25 +41,23 @@ async_scrape_flow: StreamFlow[ScrapeRequest, ScrapeResponse] = StreamFlow(
             ),
             scope=ResourceScope.WORKER,
             http=AsyncHttpxClientFactory.from_config("httpx"),
+            task_timeout_ms=5000,
             max_concurrency=50,
         ),
     ),
     errors={
-        ErrorKind.WIRE: IntoTopic[ErrorEnvelope[ScrapeRequest]](
+        ErrorKind.WIRE: IntoTopic[DecodeError](
             name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeRequest],
+            payload=DecodeError,
         ),
         ErrorKind.ROUTING: IntoTopic[ErrorEnvelope[ScrapeRequest]](
             name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeRequest],
         ),
         ErrorKind.TASK: IntoTopic[ErrorEnvelope[ScrapeRequest]](
             name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeRequest],
         ),
         ErrorKind.BUSINESS: IntoTopic[ErrorEnvelope[ScrapeRequest]](
             name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeRequest],
         ),
     },
 )

@@ -9,6 +9,7 @@ from loom.streaming import (
     BroadcastRoute,
     ErrorEnvelope,
     ErrorKind,
+    ErrorRoute,
     Fork,
     FromTopic,
     IntoTopic,
@@ -16,6 +17,7 @@ from loom.streaming import (
     StreamFlow,
     payload,
 )
+from loom.streaming.kafka import DecodeError
 
 from smoke.models import ScrapeRequest, ScrapeResponse
 from smoke.tasks.catalog_fanout import (
@@ -24,6 +26,7 @@ from smoke.tasks.catalog_fanout import (
     ExpandProductCatalogTask,
     ExtractProductReviewsTask,
     PrintResponseTask,
+    TriggerSyncErrorTask,
 )
 
 sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
@@ -80,6 +83,13 @@ sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
                                     payload=ScrapeResponse,
                                 ),
                             ),
+                            "sync_error": Process(
+                                TriggerSyncErrorTask,
+                                IntoTopic[ScrapeResponse](
+                                    name="scrape.audit",
+                                    payload=ScrapeResponse,
+                                ),
+                            ),
                         },
                     ),
                 ),
@@ -87,22 +97,20 @@ sync_scrape_flow: StreamFlow[Any, Any] = StreamFlow(
             ),
         ),
     ),
-    errors={
-        ErrorKind.WIRE: IntoTopic[ErrorEnvelope[ScrapeResponse]](
-            name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeResponse],
+    errors=(
+        ErrorRoute(
+            kinds=(ErrorKind.WIRE,),
+            output=IntoTopic[DecodeError](
+                name="scrape.errors",
+                payload=DecodeError,
+            ),
         ),
-        ErrorKind.ROUTING: IntoTopic[ErrorEnvelope[ScrapeResponse]](
-            name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeResponse],
+        ErrorRoute(
+            kinds=(ErrorKind.ROUTING, ErrorKind.TASK, ErrorKind.BUSINESS),
+            output=IntoTopic[ErrorEnvelope[ScrapeResponse]](
+                name="scrape.errors",
+                payload=ErrorEnvelope[ScrapeResponse],
+            ),
         ),
-        ErrorKind.TASK: IntoTopic[ErrorEnvelope[ScrapeResponse]](
-            name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeResponse],
-        ),
-        ErrorKind.BUSINESS: IntoTopic[ErrorEnvelope[ScrapeResponse]](
-            name="scrape.errors",
-            payload=ErrorEnvelope[ScrapeResponse],
-        ),
-    },
+    ),
 )
